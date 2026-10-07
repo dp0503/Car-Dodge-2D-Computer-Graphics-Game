@@ -143,7 +143,3 @@ The project demonstrates how basic **Computer Graphics concepts** can be combine
 Developed as an academic **Computer Graphics project** to demonstrate:
 
 **C Programming + Computer Graphics + Animation + Collision Detection**
-
----
-
-❤️ **Made with C, BGI Graphics & Computer Graphics**
