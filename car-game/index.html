@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Car Dodge</title>
+<style>
+  * { box-sizing:border-box }
+  body { margin:0; min-height:100vh; background:#f3f3f0; color:#202020; font:16px/1.5 Arial,Helvetica,sans-serif }
+  .wrap { width:min(980px,100%); margin:auto; padding:24px 20px 40px }
+  header { margin-bottom:16px }
+  .eyebrow { color:#555; font-size:.9rem }
+  h1 { margin:0; font-size:2rem; line-height:1.2 }
+  main { display:grid; grid-template-columns:minmax(300px,480px) minmax(260px,1fr); gap:24px; align-items:start }
+  .game-card,.info-card { background:white; border:1px solid #ccc; border-radius:5px; overflow:hidden }
+  .game-top { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid #ccc }
+  .score { font-variant-numeric:tabular-nums; font-weight:700 }
+  .stage { display:flex; justify-content:center; padding:10px; background:#e5e5e5 }
+  canvas { display:block; width:min(100%,480px); height:auto; aspect-ratio:3/4; border-radius:3px; background:#56866b }
+  .game-bottom { padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:12px; color:#555; font-size:.88rem }
+  button { border:1px solid #315a36; border-radius:4px; padding:8px 13px; color:white; background:#467a4c; font:700 .9rem Arial,sans-serif; cursor:pointer }
+  button:hover { background:#365f3b }
+  button:focus-visible { outline:3px solid #222; outline-offset:3px }
+  .info-card { padding:18px }
+  h2 { margin:0 0 8px; font-size:1.2rem }
+  .intro { color:#444; margin:0 0 14px }
+  .controls { display:flex; gap:7px; margin:8px 0 18px }
+  kbd { display:inline-block; min-width:32px; text-align:center; padding:4px 7px; color:#222; background:#f3f3f3; border:1px solid #bbb; border-radius:3px; font:700 .83rem monospace }
+  .concepts { padding-left:22px; margin:10px 0 0; display:grid; gap:9px }
+  .concepts li { padding-left:2px; color:#444; font-size:.92rem }
+  .concepts b { color:#202020 }
+  .divider { height:1px; margin:17px 0; background:#ccc }
+  .explain { color:#444; font-size:.92rem; margin:0 }
+  .explain strong { color:#315a36 }
+  footer { padding:14px 2px 0; color:#666; font-size:.8rem }
+  @media(max-width:760px) { .wrap{padding:20px 14px 32px} main{grid-template-columns:1fr;max-width:540px;margin:auto} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="eyebrow">Computer Graphics Project</div><h1>Car Dodge</h1></header>
+  <main>
+    <section class="game-card" aria-label="Game">
+      <div class="game-top"><strong>Car Dodge</strong><span class="score">Score: <span id="score">0</span></span></div>
+      <div class="stage"><canvas id="game" width="480" height="640" aria-label="Top-down car game. Avoid the other cars."></canvas></div>
+      <div class="game-bottom"><span id="status">Use ← → or A / D to steer</span><button id="start">Start game</button></div>
+    </section>
+    <aside class="info-card">
+      <h2>How to play</h2>
+      <p class="intro">Move the green car left and right to avoid the other cars. The score goes up while you stay in the game.</p>
+      <div class="controls"><kbd>←</kbd><kbd>→</kbd><kbd>A</kbd><kbd>D</kbd></div>
+      <h2>Graphics concepts used</h2>
+      <ol class="concepts">
+        <li><b>2D coordinates:</b> Objects are drawn at x and y positions on the canvas.</li>
+        <li><b>Basic shapes:</b> Rectangles and rounded rectangles make the road and cars.</li>
+        <li><b>Translation:</b> The drawing origin moves to each car, so its parts can be placed relative to it.</li>
+        <li><b>Animation:</b> The game redraws the scene repeatedly while moving the traffic and road markings.</li>
+        <li><b>Collision detection:</b> The game checks whether the player car overlaps another car.</li>
+      </ol>
+      <div class="divider"></div>
+      <p class="explain"><strong>In short:</strong> The game draws shapes, moves them each frame, and checks for collisions.</p>
+    </aside>
+  </main>
+  <footer>Made using HTML Canvas and JavaScript</footer>
+</div>
+<script>
+(() => {
+  const canvas = document.querySelector('#game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.querySelector('#score');
+  const statusEl = document.querySelector('#status');
+  const startBtn = document.querySelector('#start');
+  const W = canvas.width, H = canvas.height;
+  const road = { x: 70, w: 340 };
+  const lanes = [road.x + road.w / 6, road.x + road.w / 2, road.x + road.w * 5 / 6];
+  const keys = new Set();
+  let player, traffic, running = false, last = 0, elapsed = 0, score = 0, stripeOffset = 0, spawnTimer = 0, raf = 0;
+  function roundedRect(x,y,w,h,r,color) {
+    ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(x,y,w,h,r); ctx.fill();
+  }
+  function car(x,y,color,scale=1) {
+    ctx.save(); ctx.translate(x,y); ctx.scale(scale,scale);
+    roundedRect(-12,-23,24,46,8,'#142027');
+    roundedRect(-10,-21,20,42,7,color);
+    roundedRect(-7,-12,14,12,4,'#bde2dc');
+    roundedRect(-7,5,14,8,3,'#37535a');
+    roundedRect(-13,-14,4,10,2,'#202b30'); roundedRect(9,-14,4,10,2,'#202b30');
+    roundedRect(-13,7,4,10,2,'#202b30'); roundedRect(9,7,4,10,2,'#202b30');
+    roundedRect(-8,-20,5,3,1,'#fff1a6'); roundedRect(3,-20,5,3,1,'#fff1a6');
+    ctx.restore();
+  }
+  function scenery() {
+    ctx.fillStyle='#56866b'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#6a9a73';
+    for(let y=-30;y<H+30;y+=70) { ctx.fillRect(22,(y+stripeOffset*.45)%H,3,18); ctx.fillRect(444,(y+stripeOffset*.45)%H,3,18); }
+    ctx.fillStyle='#313c43'; ctx.fillRect(road.x-9,0,road.w+18,H);
+    ctx.fillStyle='#747b78'; ctx.fillRect(road.x,0,road.w,H);
+    ctx.fillStyle='#e7dfb8'; ctx.fillRect(road.x+7,0,3,H); ctx.fillRect(road.x+road.w-10,0,3,H);
+    ctx.fillStyle='#d8d3bc';
+    for(let i=1;i<3;i++) {
+      const x=road.x+road.w*i/3-2;
+      for(let y=-52+stripeOffset;y<H;y+=94) ctx.fillRect(x,y,4,48);
+    }
+    for(let y=-20+stripeOffset%90;y<H;y+=90) {
+      roundedRect(road.x-22,y,6,20,2,'#f4ead0'); roundedRect(road.x+road.w+16,y,6,20,2,'#f4ead0');
+    }
+  }
+  function draw() {
+    scenery(); traffic.forEach(t=>car(t.x,t.y,t.color)); car(player.x,player.y,'#b9f27c',1.08);
+  }
+  function reset() {
+    player={x:lanes[1],y:H-93,w:30,h:52,speed:270};
+    traffic=[]; elapsed=0; score=0; stripeOffset=0; spawnTimer=.55; scoreEl.textContent='0';
+  }
+  function spawn() {
+    const occupied=traffic.filter(t=>t.y<145).map(t=>t.lane);
+    let choices=[0,1,2].filter(l=>!occupied.includes(l));
+    if(!choices.length) choices=[Math.floor(Math.random()*3)];
+    const lane=choices[Math.floor(Math.random()*choices.length)];
+    const colors=['#df705d','#dfbd55','#7299d4','#ae79bd'];
+    traffic.push({lane,x:lanes[lane],y:-50,w:28,h:48,speed:205+Math.min(elapsed*4,105),color:colors[Math.floor(Math.random()*colors.length)]});
+  }
+  function overlaps(a,b) {
+    return Math.abs(a.x-b.x)<(a.w+b.w)*.42 && Math.abs(a.y-b.y)<(a.h+b.h)*.42;
+  }
+  function endGame() {
+    running=false; cancelAnimationFrame(raf); startBtn.textContent='Play again'; statusEl.textContent=`Crash! Final score: ${score}. Press play again.`; draw();
+    ctx.fillStyle='#091116aa'; ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.font='800 34px system-ui'; ctx.fillText('CRASH!',W/2,H/2-8);
+    ctx.fillStyle='#d5e3dc'; ctx.font='16px system-ui'; ctx.fillText(`You scored ${score}`,W/2,H/2+23);
+  }
+  function frame(time) {
+    if(!running) return;
+    const dt=Math.min((time-last)/1000,.04); last=time; elapsed+=dt;
+    const steer=(keys.has('ArrowRight')||keys.has('d')||keys.has('D')?1:0)-(keys.has('ArrowLeft')||keys.has('a')||keys.has('A')?1:0);
+    player.x=Math.max(road.x+29,Math.min(road.x+road.w-29,player.x+steer*player.speed*dt));
+    const speed=220+Math.min(elapsed*4,105); stripeOffset=(stripeOffset+speed*dt)%94;
+    spawnTimer-=dt; if(spawnTimer<=0) { spawn(); spawnTimer=Math.max(.64,1.08-elapsed*.008)+Math.random()*.32; }
+    traffic.forEach(t=>{t.y+=(speed+t.speed*.22)*dt;}); traffic=traffic.filter(t=>t.y<H+55);
+    score=Math.floor(elapsed*10); scoreEl.textContent=String(score); draw();
+    if(traffic.some(t=>overlaps(player,t))) { endGame(); return; }
+    raf=requestAnimationFrame(frame);
+  }
+  function start() {
+    if(running) return;
+    cancelAnimationFrame(raf); reset(); running=true; last=performance.now();
+    startBtn.textContent='Restart'; statusEl.textContent='Steer carefully — traffic gets faster'; raf=requestAnimationFrame(frame);
+  }
+  document.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault(); keys.add(e.key); if(e.key===' '&&!running)start();});
+  document.addEventListener('keyup',e=>keys.delete(e.key)); window.addEventListener('blur',()=>keys.clear()); startBtn.addEventListener('click',start);
+  reset(); draw();
+})();
+</script>
+</body>
+</html>
